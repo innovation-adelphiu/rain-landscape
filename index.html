@@ -3,16 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <title>Three.js First Person Scene (jsDelivr + Import Map)</title>
+  <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.21"></script>
   <style>
     body {
       margin: 0;
       overflow: hidden;
       font-family: sans-serif;
     }
+    .lil-gui 
+    {
+        --width: 300px;
+        --widget-height: 32px;
+        --font-size: 14px;
+        --input-font-size: 14px;
+        left: 10px !important;
+        right: auto !important;
+        bottom: 10px !important;
+        top: auto !important;
+    }
   </style>
 </head>
 <body>
 
+    
 <script type="importmap">
 {
   "imports": {
@@ -142,8 +155,7 @@ function initializeRain()
         color: 0xddffff,   
         size: 0.3,   
         transparent: true,
-        opacity: 0.30,
-        xalphaTest: 0.2,       
+        opacity: 0.30,       
         depthWrite: false,   
         sizeAttenuation: true,
         map: rainTexture
@@ -264,5 +276,76 @@ function animate()
 }
 
 </script>
+
+<!-- audio -->
+
+<script>
+const tracks = [];
+
+function createTrack(fileName, startValue) 
+{
+    const audio = new Audio(fileName);
+    audio.loop = true;
+    audio.volume = startValue;
+    const track = { audio: audio, baseVolume: startValue };
+    tracks.push(track);
+    return track;
+}
+
+const rainTrack    = createTrack("audio/rain.mp3",    0.60); // Rain/Wind
+const thunderTrack = createTrack("audio/thunder.mp3", 1.00); // Thunder
+
+function playAll() 
+{
+    for (let i = 0; i < tracks.length; i++)
+        tracks[i].audio.play();
+}
+
+function stopAll() 
+{
+    for (let i = 0; i < tracks.length; i++)
+        tracks[i].audio.pause();
+}
+
+// lil-gui setup
+
+const GUI = lil.GUI;
+const gui = new GUI({ position: 'bottom' });
+gui.title("Audio Controls");
+gui.close();
+
+const audioParams = 
+{
+    masterVolume: 1.00,
+    rainVolume: 0.60,
+    thunderVolume: 1.00,
+    playSound: () => playAll(),
+    stopSound: () => stopAll()
+};
+
+function syncParamsToAudio() 
+{
+    rainTrack.baseVolume   = audioParams.rainVolume;
+    thunderTrack.baseVolume = audioParams.thunderVolume;
+    for (let i = 0; i < tracks.length; i++)
+        tracks[i].audio.volume = tracks[i].baseVolume * audioParams.masterVolume;
+}
+
+// sliders
+gui.add(audioParams, "masterVolume", 0, 1, 0.01)
+    .name("Master Volume")
+    .onChange(syncParamsToAudio);
+gui.add(audioParams, "rainVolume", 0, 1, 0.01)
+    .name("Rain/Wind Volume")
+    .onChange(syncParamsToAudio);
+gui.add(audioParams, "thunderVolume", 0, 1, 0.01)
+    .name("Thunder Volume")
+    .onChange(syncParamsToAudio);
+
+// buttons
+gui.add(audioParams, "playSound").name("Play Audio");
+gui.add(audioParams, "stopSound").name("Stop Audio");
+</script>
+
 </body>
 </html>
