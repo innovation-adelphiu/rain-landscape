@@ -68,10 +68,12 @@ function initializeScene()
     scene.add(axesHelper);
     */
 
+    /*
     // first-person movement controls
     controls = new FirstPersonControls(camera, renderer.domElement);
     controls.movementSpeed = 10;   // units per second
     controls.activeLook = false;  
+    */
 
     window.addEventListener('resize', onWindowResize);
 }
@@ -191,8 +193,8 @@ function addCloud()
     // cloud.lookAt(camera.position);
 
     scene.add(cloud);
-    cloudMeshes.push(cloud);
-    cloudSpeeds.push(THREE.MathUtils.randFloat(0.001, 0.002));
+    cloudMeshes.push(cloud); 
+    cloudSpeeds.push(THREE.MathUtils.randFloat(0.002, 0.003));
 }
 
 function spawnClouds() 
@@ -206,7 +208,7 @@ function onWindowResize()
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    controls.handleResize();
+    // controls.handleResize();
 }
 
 function animate() 
@@ -215,7 +217,7 @@ function animate()
 
     const delta = clock.getDelta();
     time += delta;  
-    controls.update(delta);
+    // controls.update(delta);
 
     // fix camera to horizontal plane movement
     camera.position.y = 2;   
