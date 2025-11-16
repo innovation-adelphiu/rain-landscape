@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Three.js First Person Scene (jsDelivr + Import Map)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.181.1/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.181.1/build/three.module.js';
+import { FirstPersonControls } from 'https://cdn.jsdelivr.net/npm/three@0.181.1/examples/jsm/controls/FirstPersonControls.js';
+import { createNoiseMaterial } from './js/noiseMaterial.js';
+
+let camera, scene, renderer, controls, time = 0;
+const clock = new THREE.Clock();
+const cloudTextures = [];
+const cloudMaterials = [];
+const cloudMeshes = [];
+const cloudSpeeds = [];
+const cloudWrapBoundary = 15;
+
+const raindropCount = 10000;
+const rainTop = 10;
+const rainBottom = -10;
+var rain;
+
+initializeScene();
+initializeCloudMaterials();
+initializeRain();
+initializeBackground();
+animate();
+
+function initializeScene() 
+{
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+    const skyColor = 0x050010; 
+    scene.background = new THREE.Color(skyColor);
+    scene.fog = new THREE.FogExp2(skyColor, 0.02);
+
+    camera = new THREE.PerspectiveCamera( 75,  window.innerWidth / window.innerHeight, 0.1, 1000 );
+    camera.position.set(0, 1, 5);
+
+    /*
+    // Helpers
+    const gridHelper = new THREE.GridHelper(200, 200);
+    scene.add(gridHelper);
+
+    const axesHelper = new THREE.AxesHelper(5);
+    scene.add(axesHelper);
+    */
+
+    // first-person movement controls
+    controls = new FirstPersonControls(camera, renderer.domElement);
+    controls.movementSpeed = 10;   // units per second
+    controls.activeLook = false;  
+
+    window.addEventListener('resize', onWindowResize);
+}
+
+function initializeCloudMaterials()
+{
+    // create cloud materials
+    const manager = new THREE.LoadingManager(() => {
+        spawnClouds();
+    });
+
+    const loader = new THREE.TextureLoader(manager);
+
+    const CLOUD_TYPES = 8;
+    for (let i = 1; i <= CLOUD_TYPES; i++) 
+    {
+        const cloudTexture = loader.load(`images/cloud${i}.png`);
+        cloudTextures.push(cloudTexture);
+
+        // random gray tint
+        const gray = THREE.MathUtils.randFloat(0.30, 0.50);
+        const tintColor = new THREE.Color(gray, gray, gray);
+
+        const cloudMaterial = createNoiseMaterial({
+          map: cloudTexture, 
+          transparent: true,
+          opacity: 0.8,
+          tint: tintColor, 
+          intensity: 0.05,  // warp strength
+          scale: 8,         // noise feature size
+          speed: 0.4        // animation speed
+        });
+
+        cloudMaterials.push(cloudMaterial);
+    }
+}
+
+function initializeRain()
+{
+    const positions = new Float32Array(raindropCount * 3);
+    // y-velocity only
+    const velocity = new Float32Array(raindropCount);
+      
+    const rainTexture = new THREE.TextureLoader().load('images/streak.png');
+    for (let i = 0; i < raindropCount; i++) 
+    {
+        const x = THREE.MathUtils.randFloat(-cloudWrapBoundary, cloudWrapBoundary);
+        const y = THREE.MathUtils.randFloat(rainBottom, rainTop);  // height
+        const z = -0.2 + 1  * THREE.MathUtils.randFloat(0, 1);    // depth
+
+        const i3 = i * 3;
+        positions[i3 + 0] = x; 
+        positions[i3 + 1] = y; 
+        positions[i3 + 2] = z;
+
+        velocity[i] = 0.0;
+    }
+
+    const rainGeo = new THREE.BufferGeometry();
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    // store velocity data
+    rainGeo.userData.velocity = velocity;
+
+    const rainMaterial = new THREE.PointsMaterial({
+        color: 0xddffff,   
+        size: 0.3,   
+        transparent: true,
+        opacity: 0.30,
+        xalphaTest: 0.2,       
+        depthWrite: false,   
+        sizeAttenuation: true,
+        map: rainTexture
+    });
+
+    rain = new THREE.Points(rainGeo, rainMaterial);
+    scene.add(rain);
+}
+
+function initializeBackground()
+{
+    // add scene background
+    const backgroundTexture = new THREE.TextureLoader().load('images/night-mountain-2048.jpg');
+    const backgroundGeometry = new THREE.PlaneGeometry(24, 18); 
+    const backgroundMaterial = new THREE.MeshBasicMaterial({
+      map: backgroundTexture,
+      color: 0x333344,
+      transparent: true,      // useful if your PNG has alpha
+      side: THREE.DoubleSide  // optional, see it from both sides
+    });
+    const backgroundMesh = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+    backgroundMesh.position.set(0, 4, -3); // center
+    scene.add(backgroundMesh);
+}
+
+function addCloud() 
+{
+    const index = Math.floor(Math.random() * cloudMaterials.length);
+    const cloudTexture = cloudTextures[index];
+    const aspectRatio = cloudTexture.image.width / cloudTexture.image.height;
+    const cloudGeometry = new THREE.PlaneGeometry(aspectRatio, 1);
+    const cloudMaterial = cloudMaterials[index];
+    const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial); 
+
+    // random uniform scale
+    const scale = THREE.MathUtils.randFloat(5.0, 6.0);
+    cloud.scale.set(scale, scale, scale);
+
+    // random initial position
+    cloud.position.set(
+        THREE.MathUtils.randFloat(-cloudWrapBoundary, cloudWrapBoundary),  // x
+        THREE.MathUtils.randFloat( 6.0, 8.0),  // height
+        THREE.MathUtils.randFloat(-0.5, 0.5)   // depth
+    );
+
+    // clouds always face camera
+    // cloud.lookAt(camera.position);
+
+    scene.add(cloud);
+    cloudMeshes.push(cloud);
+    cloudSpeeds.push(THREE.MathUtils.randFloat(0.001, 0.002));
+}
+
+function spawnClouds() 
+{
+    for (let i = 0; i < 100; i++) 
+        addCloud();
+}
+
+function onWindowResize() 
+{
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    controls.handleResize();
+}
+
+function animate() 
+{
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+    time += delta;  
+    controls.update(delta);
+
+    // fix camera to horizontal plane movement
+    camera.position.y = 2;   
+
+    for (let i = 0; i < cloudMeshes.length; i++) 
+    {
+        const cloud = cloudMeshes[i];
+        const speed  = cloudSpeeds[i];
+        
+        // drift slowly to the right
+        cloud.position.x += speed; 
+
+        // wrap
+        if (cloud.position.x > cloudWrapBoundary)
+            cloud.position.x = -cloudWrapBoundary; 
+       
+        // clouds always face camera
+        // cloud.lookAt(camera.position);
+    }
+
+    // update cloud materials
+    for (let i = 0; i < cloudMaterials.length; i++) 
+    {
+        cloudMaterials[i].uniforms.uTime.value = clock.getElapsedTime();
+    }
+
+    // update rain
+    const positions = rain.geometry.attributes.position.array;
+    const velocity = rain.geometry.userData.velocity;
+    for (let i = 0; i < raindropCount; i++) 
+    {
+        const i3 = i * 3;
+        velocity[i] -= 0.001 + Math.random() * 0.004;   // accelerate downward a bit
+        positions[i3 + 1] += velocity[i]; 
+        if (positions[i3 + 1] < rainBottom) 
+        {
+            positions[i3 + 1] = rainTop;
+            velocity[i] = 0;
+        }
+    }
+    rain.geometry.attributes.position.needsUpdate = true;
+
+    renderer.render(scene, camera);
+}
+
+</script>
+</body>
+</html>
